@@ -15,7 +15,7 @@ func main() {
 	fmt.Println("starting server...")
 
 	// Alternative `net.ListenTCP` requires `TCPListener`
-	server, err := net.Listen("tcp", SERVER_HOST + ":" + SERVER_PORT)
+	server, err := net.Listen("tcp", SERVER_HOST+":"+SERVER_PORT)
 
 	if err != nil {
 		fmt.Println("error listening: ", err.Error())
@@ -49,7 +49,7 @@ func echo(connection net.Conn) {
 			return
 		}
 		fmt.Println("recv: ", string(buffer[:mLen]))
-		_, err = connection.Write([]byte("echo: "+string(buffer[:mLen])))
+		_, err = connection.Write([]byte("echo: " + string(buffer[:mLen])))
 
 		if err != nil {
 			fmt.Println("error sending: ", err.Error())
