@@ -22,7 +22,9 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ChatServiceClient interface {
+	Connect(ctx context.Context, in *ConnectionRequest, opts ...grpc.CallOption) (ChatService_ConnectClient, error)
 	SendMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error)
+	BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error)
 }
 
 type chatServiceClient struct {
@@ -31,6 +33,38 @@ type chatServiceClient struct {
 
 func NewChatServiceClient(cc grpc.ClientConnInterface) ChatServiceClient {
 	return &chatServiceClient{cc}
+}
+
+func (c *chatServiceClient) Connect(ctx context.Context, in *ConnectionRequest, opts ...grpc.CallOption) (ChatService_ConnectClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ChatService_ServiceDesc.Streams[0], "/chat.ChatService/Connect", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &chatServiceConnectClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ChatService_ConnectClient interface {
+	Recv() (*Message, error)
+	grpc.ClientStream
+}
+
+type chatServiceConnectClient struct {
+	grpc.ClientStream
+}
+
+func (x *chatServiceConnectClient) Recv() (*Message, error) {
+	m := new(Message)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *chatServiceClient) SendMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error) {
@@ -42,11 +76,22 @@ func (c *chatServiceClient) SendMessage(ctx context.Context, in *Message, opts .
 	return out, nil
 }
 
+func (c *chatServiceClient) BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error) {
+	out := new(Message)
+	err := c.cc.Invoke(ctx, "/chat.ChatService/BroadcastMessage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
 // for forward compatibility
 type ChatServiceServer interface {
+	Connect(*ConnectionRequest, ChatService_ConnectServer) error
 	SendMessage(context.Context, *Message) (*Message, error)
+	BroadcastMessage(context.Context, *Message) (*Message, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -54,8 +99,14 @@ type ChatServiceServer interface {
 type UnimplementedChatServiceServer struct {
 }
 
+func (UnimplementedChatServiceServer) Connect(*ConnectionRequest, ChatService_ConnectServer) error {
+	return status.Errorf(codes.Unimplemented, "method Connect not implemented")
+}
 func (UnimplementedChatServiceServer) SendMessage(context.Context, *Message) (*Message, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
+}
+func (UnimplementedChatServiceServer) BroadcastMessage(context.Context, *Message) (*Message, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BroadcastMessage not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 
@@ -68,6 +119,27 @@ type UnsafeChatServiceServer interface {
 
 func RegisterChatServiceServer(s grpc.ServiceRegistrar, srv ChatServiceServer) {
 	s.RegisterService(&ChatService_ServiceDesc, srv)
+}
+
+func _ChatService_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ConnectionRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ChatServiceServer).Connect(m, &chatServiceConnectServer{stream})
+}
+
+type ChatService_ConnectServer interface {
+	Send(*Message) error
+	grpc.ServerStream
+}
+
+type chatServiceConnectServer struct {
+	grpc.ServerStream
+}
+
+func (x *chatServiceConnectServer) Send(m *Message) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _ChatService_SendMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -88,6 +160,24 @@ func _ChatService_SendMessage_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_BroadcastMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Message)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).BroadcastMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chat.ChatService/BroadcastMessage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).BroadcastMessage(ctx, req.(*Message))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -99,7 +189,17 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "SendMessage",
 			Handler:    _ChatService_SendMessage_Handler,
 		},
+		{
+			MethodName: "BroadcastMessage",
+			Handler:    _ChatService_BroadcastMessage_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Connect",
+			Handler:       _ChatService_Connect_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "proto/chat.proto",
 }

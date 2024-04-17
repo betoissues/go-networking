@@ -4,10 +4,22 @@ package chat;
 
 option go_package = "/chat";
 
+message User {
+    string id = 1;
+    string name = 2;
+}
+
 message Message {
     string body = 1;
 }
 
+message ConnectionRequest {
+    User user = 1;
+    bool active = 2;
+}
+
 service ChatService {
+    rpc Connect(ConnectionRequest) returns (stream Message) {}
     rpc SendMessage(Message) returns (Message) {}
+    rpc BroadcastMessage(Message) returns (Message) {}
 }
