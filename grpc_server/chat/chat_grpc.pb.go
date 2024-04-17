@@ -23,8 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ChatServiceClient interface {
 	Connect(ctx context.Context, in *ConnectionRequest, opts ...grpc.CallOption) (ChatService_ConnectClient, error)
-	SendMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error)
-	BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error)
+	BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*CloseResponse, error)
 }
 
 type chatServiceClient struct {
@@ -67,17 +66,8 @@ func (x *chatServiceConnectClient) Recv() (*Message, error) {
 	return m, nil
 }
 
-func (c *chatServiceClient) SendMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error) {
-	out := new(Message)
-	err := c.cc.Invoke(ctx, "/chat.ChatService/SendMessage", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *chatServiceClient) BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error) {
-	out := new(Message)
+func (c *chatServiceClient) BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*CloseResponse, error) {
+	out := new(CloseResponse)
 	err := c.cc.Invoke(ctx, "/chat.ChatService/BroadcastMessage", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -90,8 +80,7 @@ func (c *chatServiceClient) BroadcastMessage(ctx context.Context, in *Message, o
 // for forward compatibility
 type ChatServiceServer interface {
 	Connect(*ConnectionRequest, ChatService_ConnectServer) error
-	SendMessage(context.Context, *Message) (*Message, error)
-	BroadcastMessage(context.Context, *Message) (*Message, error)
+	BroadcastMessage(context.Context, *Message) (*CloseResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -102,10 +91,7 @@ type UnimplementedChatServiceServer struct {
 func (UnimplementedChatServiceServer) Connect(*ConnectionRequest, ChatService_ConnectServer) error {
 	return status.Errorf(codes.Unimplemented, "method Connect not implemented")
 }
-func (UnimplementedChatServiceServer) SendMessage(context.Context, *Message) (*Message, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
-}
-func (UnimplementedChatServiceServer) BroadcastMessage(context.Context, *Message) (*Message, error) {
+func (UnimplementedChatServiceServer) BroadcastMessage(context.Context, *Message) (*CloseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BroadcastMessage not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
@@ -142,24 +128,6 @@ func (x *chatServiceConnectServer) Send(m *Message) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _ChatService_SendMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Message)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).SendMessage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/chat.ChatService/SendMessage",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).SendMessage(ctx, req.(*Message))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ChatService_BroadcastMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Message)
 	if err := dec(in); err != nil {
@@ -185,10 +153,6 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "chat.ChatService",
 	HandlerType: (*ChatServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "SendMessage",
-			Handler:    _ChatService_SendMessage_Handler,
-		},
 		{
 			MethodName: "BroadcastMessage",
 			Handler:    _ChatService_BroadcastMessage_Handler,

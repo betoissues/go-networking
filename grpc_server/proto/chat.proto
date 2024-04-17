@@ -10,7 +10,8 @@ message User {
 }
 
 message Message {
-    string body = 1;
+    User user = 1;
+    string body = 2;
 }
 
 message ConnectionRequest {
@@ -18,8 +19,9 @@ message ConnectionRequest {
     bool active = 2;
 }
 
+message CloseResponse {}
+
 service ChatService {
     rpc Connect(ConnectionRequest) returns (stream Message) {}
-    rpc SendMessage(Message) returns (Message) {}
-    rpc BroadcastMessage(Message) returns (Message) {}
+    rpc BroadcastMessage(Message) returns (CloseResponse) {}
 }
